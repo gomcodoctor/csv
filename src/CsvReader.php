@@ -73,6 +73,11 @@ class CsvReader implements CountableReader, \SeekableIterator
      */
     protected $duplicateHeadersFlag;
 
+
+    protected $padValue = null;
+
+    protected $truncateHeader = false;
+
     /**
      * @param \SplFileObject $file
      * @param string         $delimiter
@@ -115,10 +120,15 @@ class CsvReader implements CountableReader, \SeekableIterator
         do {
             $line = $this->file->current();
 
+            $columnHeaders = $this->columnHeaders;
+
             // In non-strict mode pad/slice the line to match the column headers
             if (!$this->isStrict()) {
                 if ($this->headersCount > count($line)) {
-                    $line = array_pad($line, $this->headersCount, null); // Line too short
+                    if($this->truncateHeader){
+                        $columnHeaders =  array_slice($columnHeaders, 0, count($line));
+                    }
+                    else $line = array_pad($line, $this->headersCount, $this->getPadValue()); // Line too short
                 } else {
                     $line = array_slice($line, 0, $this->headersCount); // Line too long
                 }
@@ -130,8 +140,8 @@ class CsvReader implements CountableReader, \SeekableIterator
             }
 
             // Count the number of elements in both: they must be equal.
-            if (count($this->columnHeaders) === count($line)) {
-                return array_combine(array_keys($this->columnHeaders), $line);
+            if (count($columnHeaders) === count($line)) {
+                return array_combine(array_keys($columnHeaders), $line);
             }
 
             // They are not equal, so log the row as error and skip it.
@@ -404,4 +414,38 @@ class CsvReader implements CountableReader, \SeekableIterator
 
         return $values;
     }
+
+    /**
+     * @return null
+     */
+    public function getPadValue()
+    {
+        return $this->padValue;
+    }
+
+    /**
+     * @param null $padValue
+     */
+    public function setPadValue($padValue)
+    {
+        $this->padValue = $padValue;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isTruncateHeader(): bool
+    {
+        return $this->truncateHeader;
+    }
+
+    /**
+     * @param bool $truncateHeader
+     */
+    public function setTruncateHeader(bool $truncateHeader)
+    {
+        $this->truncateHeader = $truncateHeader;
+    }
+
+
 }
