@@ -1,6 +1,6 @@
 <?php
 
-namespace Gomcodoctor\Portphp\Reader;
+namespace namespace Port\Csv;
 
 use Port\Exception\DuplicateHeadersException;
 use Port\Reader\CountableReader;
