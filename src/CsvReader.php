@@ -1,6 +1,6 @@
 <?php
 
-namespace namespace Port\Csv;
+namespace Port\Csv;
 
 use Port\Exception\DuplicateHeadersException;
 use Port\Reader\CountableReader;
