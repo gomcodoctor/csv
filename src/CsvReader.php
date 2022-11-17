@@ -73,6 +73,13 @@ class CsvReader implements CountableReader, \SeekableIterator
      */
     protected $duplicateHeadersFlag;
 
+
+    protected $padValue = null;
+
+    protected $truncateHeader = false;
+
+    protected $removeEmptyField = false;
+
     /**
      * @param \SplFileObject $file
      * @param string         $delimiter
@@ -81,6 +88,8 @@ class CsvReader implements CountableReader, \SeekableIterator
      */
     public function __construct(\SplFileObject $file, $delimiter = ',', $enclosure = '"', $escape = '\\')
     {
+        ini_set('auto_detect_line_endings', true);
+
         $this->file = $file;
         $this->file->setFlags(
             \SplFileObject::READ_CSV |
@@ -99,8 +108,10 @@ class CsvReader implements CountableReader, \SeekableIterator
      * Return the current row as an array
      *
      * If a header row has been set, an associative array will be returned
+     *
+     * @return array
      */
-    public function current(): ?array
+    public function current()
     {
         // If the CSV has no column headers just return the line
         if (empty($this->columnHeaders)) {
@@ -111,10 +122,15 @@ class CsvReader implements CountableReader, \SeekableIterator
         do {
             $line = $this->file->current();
 
+            $columnHeaders = $this->columnHeaders;
+
             // In non-strict mode pad/slice the line to match the column headers
             if (!$this->isStrict()) {
                 if ($this->headersCount > count($line)) {
-                    $line = array_pad($line, $this->headersCount, null); // Line too short
+                    if($this->truncateHeader){
+                        $columnHeaders =  array_slice($columnHeaders, 0, count($line));
+                    }
+                    else $line = array_pad($line, $this->headersCount, $this->getPadValue()); // Line too short
                 } else {
                     $line = array_slice($line, 0, $this->headersCount); // Line too long
                 }
@@ -126,8 +142,12 @@ class CsvReader implements CountableReader, \SeekableIterator
             }
 
             // Count the number of elements in both: they must be equal.
-            if (count($this->columnHeaders) === count($line)) {
-                return array_combine(array_keys($this->columnHeaders), $line);
+            if (count($columnHeaders) === count($line)) {
+                $finalLine = array_combine(array_keys($columnHeaders), $line);
+                if($this->isRemoveEmptyField()){
+                    return array_filter($finalLine, function($value) { return $value !== ''; });
+                }
+                else return $finalLine;
             }
 
             // They are not equal, so log the row as error and skip it.
@@ -192,7 +212,7 @@ class CsvReader implements CountableReader, \SeekableIterator
      * row. That way, when you iterate over the rows, that header row is
      * skipped.
      */
-    public function rewind(): void
+    public function rewind()
     {
         $this->file->rewind();
         if (null !== $this->headerRowNumber) {
@@ -200,7 +220,10 @@ class CsvReader implements CountableReader, \SeekableIterator
         }
     }
 
-    public function count(): int
+    /**
+     * {@inheritdoc}
+     */
+    public function count()
     {
         if (null === $this->count) {
             $position = $this->key();
@@ -213,22 +236,34 @@ class CsvReader implements CountableReader, \SeekableIterator
         return $this->count;
     }
 
-    public function next(): void
+    /**
+     * {@inheritdoc}
+     */
+    public function next()
     {
         $this->file->next();
     }
 
-    public function valid(): bool
+    /**
+     * {@inheritdoc}
+     */
+    public function valid()
     {
         return $this->file->valid();
     }
 
-    public function key(): int
+    /**
+     * {@inheritdoc}
+     */
+    public function key()
     {
         return $this->file->key();
     }
 
-    public function seek($pointer): void
+    /**
+     * {@inheritdoc}
+     */
+    public function seek($pointer)
     {
         $this->file->seek($pointer);
     }
@@ -306,13 +341,15 @@ class CsvReader implements CountableReader, \SeekableIterator
         $this->file->seek($rowNumber);
         $headers = $this->file->current();
 
+        /** BOM file encoding issue */
+        $headers[0] = $this->prepareJSON($headers[0]);
         // Test for duplicate column headers
         $diff = array_diff_assoc($headers, array_unique($headers));
         if (count($diff) > 0) {
             switch ($this->duplicateHeadersFlag) {
                 case self::DUPLICATE_HEADERS_INCREMENT:
                     $headers = $this->incrementHeaders($headers);
-                    // Fall through
+                // Fall through
                 case self::DUPLICATE_HEADERS_MERGE:
                     break;
                 default:
@@ -385,4 +422,66 @@ class CsvReader implements CountableReader, \SeekableIterator
 
         return $values;
     }
+
+    /**
+     * @return null
+     */
+    public function getPadValue()
+    {
+        return $this->padValue;
+    }
+
+    /**
+     * @param null $padValue
+     */
+    public function setPadValue($padValue)
+    {
+        $this->padValue = $padValue;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isTruncateHeader(): bool
+    {
+        return $this->truncateHeader;
+    }
+
+    /**
+     * @param bool $truncateHeader
+     */
+    public function setTruncateHeader(bool $truncateHeader)
+    {
+        $this->truncateHeader = $truncateHeader;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isRemoveEmptyField(): bool
+    {
+        return $this->removeEmptyField;
+    }
+
+    /**
+     * @param bool $removeEmptyField
+     */
+    public function setRemoveEmptyField(bool $removeEmptyField)
+    {
+        $this->removeEmptyField = $removeEmptyField;
+    }
+
+    function prepareJSON($input) {
+        //This will convert ASCII/ISO-8859-1 to UTF-8.
+        //Be careful with the third parameter (encoding detect list), because
+        //if set wrong, some input encodings will get garbled (including UTF-8!)
+        $imput = mb_convert_encoding($input, 'UTF-8', 'ASCII,UTF-8,ISO-8859-1');
+        //Remove UTF-8 BOM if present, json_decode() does not like it.
+        if(substr($input, 0, 3) == pack("CCC", 0xEF, 0xBB, 0xBF)) $input = substr($input, 3);
+        return $input;
+    }
+
+
+
+
 }
