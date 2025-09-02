@@ -177,6 +177,7 @@ class CsvReader implements CountableReader, \SeekableIterator
      */
     public function setColumnHeaders(array $columnHeaders)
     {
+        $columnHeaders = array_map('trim', $columnHeaders);
         $this->columnHeaders = array_count_values($columnHeaders);
         $this->headersCount = count($columnHeaders);
     }
