@@ -63,7 +63,7 @@ class CsvWriter extends AbstractStreamWriter
     /**
      * {@inheritdoc}
      */
-    public function writeItem(array $item)
+    public function writeItem(mixed $item)
     {
         if ($this->prependHeaderRow && 1 == $this->row++) {
             $headers = array_keys($item);
