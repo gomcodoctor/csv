@@ -118,8 +118,11 @@ class CsvReader implements CountableReader, \SeekableIterator
             return $this->file->current();
         }
 
-        // Since the CSV has column headers use them to construct an associative array for the columns in this line
-        do {
+        // Since the CSV has column headers use them to construct an associative array for the columns in this line.
+        // Check valid() before current(): SplFileObject::current() returns false at EOF, and a do-while would
+        // still enter the body once when the iterator is already invalid (e.g. OneToManyReader calls current()
+        // after next() past the last detail row), causing count(false) TypeError on PHP 8+.
+        while ($this->valid()) {
             $line = $this->file->current();
 
             $columnHeaders = $this->columnHeaders;
@@ -155,7 +158,7 @@ class CsvReader implements CountableReader, \SeekableIterator
                 $this->errors[$this->key()] = $line;
                 $this->next();
             }
-        } while($this->valid());
+        }
 
         return null;
     }
@@ -377,15 +380,17 @@ class CsvReader implements CountableReader, \SeekableIterator
      */
     protected function incrementHeaders(array $headers)
     {
+        $counts = [];
         $incrementedHeaders = [];
-        foreach (array_count_values($headers) as $header => $count) {
-            if ($count > 1) {
+
+        foreach ($headers as $header) {
+
+            if (!isset($counts[$header])) {
+                $counts[$header] = 0;
                 $incrementedHeaders[] = $header;
-                for ($i = 1; $i < $count; $i++) {
-                    $incrementedHeaders[] = $header . $i;
-                }
             } else {
-                $incrementedHeaders[] = $header;
+                $counts[$header]++;
+                $incrementedHeaders[] = $header . $counts[$header];
             }
         }
 
