@@ -377,15 +377,17 @@ class CsvReader implements CountableReader, \SeekableIterator
      */
     protected function incrementHeaders(array $headers)
     {
+        $counts = [];
         $incrementedHeaders = [];
-        foreach (array_count_values($headers) as $header => $count) {
-            if ($count > 1) {
+
+        foreach ($headers as $header) {
+
+            if (!isset($counts[$header])) {
+                $counts[$header] = 0;
                 $incrementedHeaders[] = $header;
-                for ($i = 1; $i < $count; $i++) {
-                    $incrementedHeaders[] = $header . $i;
-                }
             } else {
-                $incrementedHeaders[] = $header;
+                $counts[$header]++;
+                $incrementedHeaders[] = $header . $counts[$header];
             }
         }
 
